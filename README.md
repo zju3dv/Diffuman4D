@@ -6,7 +6,7 @@
 <p align="center">
   <a href="https://diffuman4d.github.io/"><strong>Project Page</strong></a>
   &nbsp;|&nbsp;
-  <a href="https://diffuman4d.github.io/"><strong>arXiv</strong></a>
+  <a href="https://arxiv.org/abs/2507.13344"><strong>Paper</strong></a>
 </p>
 
 > The official repo for "Diffuman4D: 4D Consistent Human View Synthesis from Sparse-View Videos with Spatio-Temporal Diffusion Models".
