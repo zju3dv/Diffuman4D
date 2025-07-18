@@ -25,7 +25,7 @@
 
 To enable model training, we meticulously process the [DNA-Rendering dataset](https://dna-rendering.github.io/index.html) by recalibrating camera parameters, optimizing image color correction matrices (CCMs), predicting foreground masks, and estimating human skeletons.
 
-We will release our processed version of the DNA-Rendering dataset in this repo, which we believe will benefit future research in this area.
+We will release our processed version of the DNA-Rendering dataset in this repo without violating its open-source license, which we believe will benefit future research in this area.
 
 <img src="assets/images/dna_rendering_processed.jpg" width="480px"></img>
 
