@@ -45,7 +45,7 @@ We will release re-annotated labels for the DNA-Rendering dataset in this reposi
 @inproceedings{jin2025diffuman4d,
   title={Diffuman4D: 4D Consistent Human View Synthesis from Sparse-View Videos with Spatio-Temporal Diffusion Models},
   author={Jin, Yudong and Peng, Sida and Wang, Xuan and Xie, Tao and Xu, Zhen and Yang, Yifan and Shen, Yujun and Bao, Hujun and Zhou, Xiaowei},
-  booktitle={ICCV},
+  booktitle={International Conference on Computer Vision (ICCV)},
   year={2025}
 }
 ```
