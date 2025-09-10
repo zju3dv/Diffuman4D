@@ -1,0 +1,7 @@
+defaults:
+  - sliding_default
+  - _self_
+
+# denoising
+window_size: 4
+guidance_scale: 1.0

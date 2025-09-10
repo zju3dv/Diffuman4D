@@ -1,0 +1,23 @@
+# @package _global_
+
+defaults:
+  - override /data: dna_rendering
+  - override /model: diffuman4d
+  - override /sampler: sliding_fast
+
+data:
+  scene_label: "0811_06"
+  has_gt_target: True
+
+model:
+  torch_dtype: "bf16" # use "fp16" if "bf16" is not supported by your GPU
+  gpu_ids: null # use all GPUs if null
+
+sampler:
+  spa_label_range: [0, 48, 1] # target cameras
+  tem_label_range: [0, 150, 1] # target frames
+  input_spa_labels: [1, 13, 25, 37] # input cameras
+
+sampling: true
+to_nerfstudio: true
+evaluating: false

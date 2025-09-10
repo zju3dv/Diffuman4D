@@ -1,0 +1,9 @@
+# @package _global_
+
+defaults:
+  - .: demo_4d
+
+sampler:
+  spa_label_range: [0, 48, 1] # target cameras
+  tem_label_range: [0, 16, 1] # target frames
+  input_spa_labels: [1, 13, 25, 37] # input cameras

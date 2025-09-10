@@ -1,0 +1,19 @@
+_target_: src.samplers.sliding_iterative_sampler.SlidingIterativeSampler
+
+output_dir: ${result_dir}/${data.scene_label}
+
+# denoising
+window_size: 12
+sliding_stride: 1
+sliding_shift: 0
+bidirectional: False
+num_denoising_steps: 1
+alternation_rounds: 3
+guidance_scale: 2.0
+
+# data range
+spa_label_range: [0, 48, 1]
+tem_label_range: [0, 150, 1]
+spa_labels: null
+tem_labels: null
+input_spa_labels: [1, 13, 25, 37]

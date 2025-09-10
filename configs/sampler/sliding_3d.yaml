@@ -1,0 +1,6 @@
+defaults:
+  - sliding_default
+  - _self_
+
+# denoising
+alternation_rounds: 1

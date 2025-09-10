@@ -1,0 +1,20 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - hydra: default
+  - data: dna_rendering
+  - model: diffuman4d
+  - sampler: sliding_default
+  - exp: ${exp_name}
+
+# paths
+exp_name: ${hydra:runtime.choices.exp}
+timestamp: ${oc.env:TIMESTAMP,${now:%Y%m%d_%H%M%S}}
+log_dir: ./output/logs/${exp_name}/${timestamp}
+result_dir: ./output/results/${exp_name}
+
+# actions
+sampling: true
+to_nerfstudio: true
+evaluating: false

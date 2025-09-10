@@ -1,0 +1,8 @@
+_target_: src.data.spatem_dataset.SpaTemDataset
+data_dir: ./data/fdvai
+camera_path_pat: "{data_dir}/{scene_label}/transforms.json"
+image_path_pat: "{data_dir}/{scene_label}/images/{spa_label}/{tem_label}.jpg"
+fmask_path_pat: "{data_dir}/{scene_label}/fmasks/{spa_label}/{tem_label}.png"
+skeleton_path_pat: "{data_dir}/{scene_label}/skeletons/{spa_label}/{tem_label}.jpg"
+scene_label: "0326_07"
+has_gt_target: True
