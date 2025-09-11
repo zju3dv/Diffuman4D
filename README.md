@@ -34,7 +34,7 @@ pip install -r requirements.txt
 pip install git+https://github.com/zju3dv/EasyVolcap.git --no-deps
 ```
 
-**2. Download Example Data.** Please download the example data from this [Hugging Face repo](https://huggingface.co/datasets/krahets/diffuman4d_example) via:
+**2. Download Example Data.** Please download the [example test data](https://huggingface.co/datasets/krahets/diffuman4d_example) using:
 
 ```sh
 python scripts/download/download_dataset.py --repo_id "krahets/diffuman4d_example" --types='["images", "fmasks", "skeletons", "cameras"]'
@@ -92,7 +92,7 @@ python inference.py exp=demo_4d data.scene_label=0023_06 data.data_dir=./data/da
 ns-train splatfacto --data "./output/results/dna_rendering_tiny/0023_06/transforms.json"
 ```
 
-**6. Reconstruct 4DGS Model.** Since [LongVolcap](https://zju3dv.github.io/longvolcap/) has not been open-sourced, we will attempt to provide an alternative 4DGS reconstruction algorithm.
+**6. Reconstruct 4DGS Model.** Since [LongVolcap](https://zju3dv.github.io/longvolcap/) has not been open-sourced, we will attempt to provide the alternative [4D-Gaussian-Splatting](https://github.com/fudan-zvg/4d-gaussian-splatting) reconstruction scripts.
 
 ## Processed DNA-Rendering Dataset
 
