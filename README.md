@@ -114,10 +114,10 @@ pip install -U huggingface_hub datasets pyarrow pandas
 pip install git+https://github.com/zju3dv/EasyVolcap.git --no-deps
 ```
 
-Download re-annotated labels for the DNA-Rendering dataset (foreground masks, 2D skeletons, 3D skeletons, camera parameters):
+Download re-annotated labels (foreground masks, 2D skeletons, 3D skeletons, camera parameters) for the DNA-Rendering dataset:
 
-1. Fill out [this form](https://docs.google.com/forms/d/1v-X0bnl5GUO9ewYW5eY2wk-yrwQx4_u2lEWbLIao4VU) and request access to [dna_rendering_processed repo](https://huggingface.co/datasets/krahets/dna_rendering_processed).
-2. Download the dataset using [this script](scripts/download/download_dataset.py).
+1. Please **(1)** fill out [this form](https://docs.google.com/forms/d/1v-X0bnl5GUO9ewYW5eY2wk-yrwQx4_u2lEWbLIao4VU) and **(2)** request access to the dataset on [this page](https://huggingface.co/datasets/krahets/dna_rendering_processed).
+2. Download the dataset using [the script](scripts/download/download_dataset.py) below.
 
 ```sh
 # Download and extract the entire dataset
@@ -127,10 +127,10 @@ python scripts/download/download_dataset.py --out_dir "./data/dna_rendering_proc
 python scripts/download/download_dataset.py --out_dir "./data/dna_rendering_processed" --scenes '["0007_01"]' --types '["fmasks"]'
 ```
 
-Download the raw data and extract the corresponding RGB images:
+Download the corresponding RGB images:
 
 1. Download the raw data from the [official DNA-Rendering website](https://dna-rendering.github.io/inner-download.html).
-2. Extract the RGB images from the archived dataset files using [this script](scripts/download/extract_dnar_images.py).
+2. Extract the RGB images from the archived dataset files using [the script](scripts/download/extract_dnar_images.py) below.
 
 ```sh
 # Extract images from all scenes in `processed_root`. You may replace `raw_root` with your own path.
