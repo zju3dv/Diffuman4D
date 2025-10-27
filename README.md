@@ -116,7 +116,7 @@ pip install git+https://github.com/zju3dv/EasyVolcap.git --no-deps
 
 Download re-annotated labels (foreground masks, 2D skeletons, 3D skeletons, camera parameters) for the DNA-Rendering dataset:
 
-1. Please concurrently **(1)** fill out [this form](https://docs.google.com/forms/d/1v-X0bnl5GUO9ewYW5eY2wk-yrwQx4_u2lEWbLIao4VU) and **(2)** request access to the dataset on [this page](https://huggingface.co/datasets/krahets/dna_rendering_processed).
+1. Fill out [this form](https://docs.google.com/forms/d/1v-X0bnl5GUO9ewYW5eY2wk-yrwQx4_u2lEWbLIao4VU).
 2. Download the dataset using [the script](scripts/download/download_dataset.py) below.
 
 ```sh
