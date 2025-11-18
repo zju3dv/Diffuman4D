@@ -114,10 +114,7 @@ pip install -U huggingface_hub datasets pyarrow pandas
 pip install git+https://github.com/zju3dv/EasyVolcap.git --no-deps
 ```
 
-Download re-annotated labels (foreground masks, 2D skeletons, 3D skeletons, camera parameters) for the DNA-Rendering dataset:
-
-1. Fill out [this form](https://docs.google.com/forms/d/1v-X0bnl5GUO9ewYW5eY2wk-yrwQx4_u2lEWbLIao4VU).
-2. Download the dataset using [the script](scripts/download/download_dataset.py) below.
+Download re-annotated labels (foreground masks, 2D skeletons, 3D skeletons, camera parameters) for the DNA-Rendering dataset using [the script](scripts/download/download_dataset.py) below.
 
 ```sh
 # Download and extract the entire dataset
