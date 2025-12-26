@@ -132,7 +132,6 @@ def main(
     voxel_size: float = 0.025,
     batch_size: int = 1e6,
     min_views: int = None,
-    save_nerfstudio_pcd: bool = True,
     device: str = "cuda",
 ):
     """
@@ -191,10 +190,6 @@ def main(
         )
 
         save_pcd(os.path.join(out_vhull_dir, f"{frm_label}.ply"), hull_pts)
-
-        if i == 0 and save_nerfstudio_pcd:
-            out_pcd_dir = os.path.dirname(cameras_path) if cameras_path.endswith(".json") else cameras_path
-            save_pcd(f"{out_pcd_dir}/sparse_pcd.ply", hull_pts)
 
 
 if __name__ == "__main__":

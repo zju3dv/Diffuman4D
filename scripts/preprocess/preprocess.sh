@@ -44,6 +44,7 @@ for act in "${ACTIONS[@]}"; do
         --fmasks_dir "$DATADIR/fmasks" \
         --cameras_path "$DATADIR/transforms.json" \
         --out_vhull_dir "$DATADIR/surfs"
+      cp "$DATADIR/surfs/000000.ply" "$DATADIR/sparse_pcd.ply"
       ;;
     predict_keypoints)
       # it is recommend to use a seperate conda environment to run sapiens-lite
