@@ -50,11 +50,10 @@ class AdhocVideoDataset(torch.utils.data.Dataset):
             assert len(shape) == 2
             self.shape = shape
 
-        # (H, W) resize to (1024, W / H * 1024) crop to (h, w)
+        # (H, W) resize to (1024, W / H * 1024)
         self.tranform_image = transforms.Compose(
             [
-                transforms.Resize(self.shape[0], interpolation=transforms.InterpolationMode.BICUBIC),
-                transforms.CenterCrop(self.shape),
+                transforms.Resize(self.shape, interpolation=transforms.InterpolationMode.BICUBIC),
             ]
         )
 
