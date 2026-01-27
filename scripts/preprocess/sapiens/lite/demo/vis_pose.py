@@ -19,6 +19,8 @@ from tqdm import tqdm
 from glob import glob
 
 from adhoc_image_dataset import AdhocImageDataset
+from adhoc_video_dataset import AdhocVideoDataset
+
 from classes_and_palettes import (
     COCO_KPTS_COLORS,
     COCO_WHOLEBODY_KPTS_COLORS,
@@ -195,7 +197,8 @@ def main():
     parser.add_argument("pose_checkpoint", help="Checkpoint file for pose")
     parser.add_argument("--det-config", default="", help="Config file for detection")
     parser.add_argument("--det-checkpoint", default="", help="Checkpoint file for detection")
-    parser.add_argument("--images_dir", type=str, required=True)
+    parser.add_argument("--images_dir", type=str, default=None)
+    parser.add_argument("--video_path", type=str, default=None)
     parser.add_argument("--fmasks_dir", type=str, default=None)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument(
@@ -224,7 +227,7 @@ def main():
         default=4,
         help="Set number of workers per GPU",
     )
-    parser.add_argument("--gpu_ids", default="0,1", help="Device used for inference")
+    parser.add_argument("--gpu_ids", default=None, help="Device used for inference")
     parser.add_argument("--fp16", action="store_true", default=False, help="Model inference dtype")
     parser.add_argument(
         "--det-cat-id",
@@ -282,7 +285,6 @@ def main():
             process_images_detector,
         )
 
-    assert args.images_dir != ""
     ## if skeleton thickness is not specified, use radius as thickness
     if args.thickness == -1:
         args.thickness = args.radius
@@ -296,9 +298,12 @@ def main():
 
     torch._inductor.config.force_fuse_int_mm_with_mul = True
     torch._inductor.config.use_mixed_mm = True
-    args.gpu_ids = [int(i) for i in args.gpu_ids.split(",")]
+
+    if args.gpu_ids is None:
+        args.gpu_ids = list(range(torch.cuda.device_count()))
+    else:
+        args.gpu_ids = [int(i) for i in args.gpu_ids.split(",")]
     num_gpus = len(args.gpu_ids)
-    args.num_workers = args.num_workers * num_gpus
 
     detectors = []
     pose_estimators = []
@@ -325,21 +330,23 @@ def main():
         pose_estimators.append(pose_estimator)
 
     # hard code the image extension
-    image_paths = sorted(
-        glob(f"{args.images_dir}/**/*.jpg", recursive=True) + glob(f"{args.images_dir}/**/*.webp", recursive=True)
-    )
+    if args.images_dir is not None:
+        image_paths = sorted(
+            glob(f"{args.images_dir}/**/*.jpg", recursive=True) + glob(f"{args.images_dir}/**/*.webp", recursive=True)
+        )
+        assert args.video_path is None, "video_path and images_dir cannot be used together"
+
     if args.fmasks_dir is not None and args.fmasks_dir != "None":
         fmask_paths = sorted(glob(f"{args.fmasks_dir}/**/*.png", recursive=True))
     else:
         fmask_paths = None
 
-    assert fmask_paths is None or len(image_paths) == len(
-        fmask_paths
-    ), "image_paths and fmask_paths must have the same length to enable background removal"
-
     scale = args.heatmap_scale
     # do not provide preprocess args for detector as we use mmdet
-    inference_dataset = AdhocImageDataset(image_paths, fmask_paths)
+    if args.video_path is not None:
+        inference_dataset = AdhocVideoDataset(args.video_path, fmask_paths)
+    else:
+        inference_dataset = AdhocImageDataset(image_paths, fmask_paths)
 
     KPTS_COLORS = COCO_WHOLEBODY_KPTS_COLORS  ## 133 keypoints
     SKELETON_INFO = COCO_WHOLEBODY_SKELETON_INFO
@@ -361,7 +368,10 @@ def main():
         image_path, orig_img = inference_dataset[idx]
 
         # ? we add the cam_label here to fit the easyvolcap data format
-        output_path = osp.join(args.output_dir, "/".join(image_path.split("/")[-2:]))
+        if args.video_path is not None:
+            output_path = osp.join(args.output_dir, "/".join(image_path.split("/")[-1:]))
+        else:
+            output_path = osp.join(args.output_dir, "/".join(image_path.split("/")[-2:]))
         args.image_ext = osp.splitext(image_path)[1]
         output_json_path = output_path.replace(args.image_ext, ".json")
         if args.skip_exists and osp.exists(output_json_path):

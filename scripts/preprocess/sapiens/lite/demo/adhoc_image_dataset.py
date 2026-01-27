@@ -16,20 +16,23 @@ class AdhocImageDataset(torch.utils.data.Dataset):
     def __init__(self, image_paths, fmask_paths=None, shape=None):
         self.image_paths = image_paths
         self.fmask_paths = fmask_paths
-        if self.fmask_paths is not None and len(self.fmask_paths) != len(
-            self.image_paths
-        ):
+        if self.fmask_paths is not None and len(self.fmask_paths) != len(self.image_paths):
             raise ValueError("fmask_paths and image_paths must have the same length")
         if shape:
             assert len(shape) == 2
-        self.shape = shape if shape else (1024, 1024)
 
-        # ! hard-code: (h, w) -> (1024, w / h * 1024) or (h / w * 1024, 1024) -> (1024, 1024)
+        if self.shape is None:
+            image = Image.open(image_paths[0])
+            W, H = image.size
+            height, width = 1024, int(round(W / H * 1024))
+            self.shape = (height, width)
+        else:
+            self.shape = shape
+
+        # (H, W) resize to (1024, W / H * 1024) crop to (h, w)
         self.tranform_image = transforms.Compose(
             [
-                transforms.Resize(
-                    self.shape[0], interpolation=transforms.InterpolationMode.BICUBIC
-                ),
+                transforms.Resize(self.shape[0], interpolation=transforms.InterpolationMode.BICUBIC),
                 transforms.CenterCrop(self.shape),
             ]
         )
