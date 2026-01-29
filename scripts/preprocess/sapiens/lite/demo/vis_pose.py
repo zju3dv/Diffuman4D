@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from argparse import ArgumentParser
+import fire
 from collections import defaultdict
 from typing import List, Optional, Sequence, Union
 from tqdm import tqdm
@@ -189,88 +189,137 @@ def load_model(checkpoint, use_torchscript=False):
         return torch.export.load(checkpoint).module()
 
 
-def main():
+def load_pose_estimators(pose_checkpoint, gpu_ids=None, dtype=torch.bfloat16):
+    if gpu_ids is None:
+        gpu_ids = list(range(torch.cuda.device_count()))
+
+    pose_estimators = []
+    for gpu_id in gpu_ids:
+        USE_TORCHSCRIPT = "_torchscript" in pose_checkpoint
+        # build the model from a checkpoint file
+        pose_estimator = load_model(pose_checkpoint, USE_TORCHSCRIPT)
+        ## no precision conversion needed for torchscript. run at fp32
+        if not USE_TORCHSCRIPT:
+            pose_estimator.to(dtype)
+            pose_estimator = torch.compile(pose_estimator, mode="max-autotune", fullgraph=True)
+        else:
+            dtype = torch.float32  # TorchScript models use float32
+            pose_estimator = pose_estimator.to(device=f"cuda:{gpu_id}")
+        pose_estimators.append(pose_estimator)
+    return pose_estimators
+
+
+def load_detectors(det_config, det_checkpoint, gpu_ids=None):
+    from detector_utils import init_detector, adapt_mmdet_pipeline
+
+    if gpu_ids is None:
+        gpu_ids = list(range(torch.cuda.device_count()))
+
+    detectors = []
+    for gpu_id in gpu_ids:
+        # build detector
+        detector = init_detector(det_config, det_checkpoint, device=f"cuda:{gpu_id}")
+        detector.cfg = adapt_mmdet_pipeline(detector.cfg)
+        detectors.append(detector)
+    return detectors
+
+
+def inference_sapiens_pose(
+    pose_checkpoint="",
+    det_config="",
+    det_checkpoint="",
+    pose_estimators=None,
+    detectors=None,
+    images_dir=None,
+    video_path=None,
+    fmasks_dir=None,
+    output_dir=None,
+    num_keypoints=133,
+    shape=(1024, 768),
+    batch_size=1,
+    num_workers=16,
+    gpu_ids=None,
+    fp16=False,
+    det_cat_id=0,
+    bbox_thr=0.3,
+    nms_thr=0.3,
+    kpt_thr=0.3,
+    radius=9,
+    thickness=-1,
+    heatmap_scale=4,
+    flip=False,
+    image_ext=".jpg",
+    save_image=False,
+    skip_exists=False,
+):
     """Visualize the demo images.
     Using mmdet to detect the human.
-    """
-    parser = ArgumentParser()
-    parser.add_argument("pose_checkpoint", help="Checkpoint file for pose")
-    parser.add_argument("--det-config", default="", help="Config file for detection")
-    parser.add_argument("--det-checkpoint", default="", help="Checkpoint file for detection")
-    parser.add_argument("--images_dir", type=str, default=None)
-    parser.add_argument("--video_path", type=str, default=None)
-    parser.add_argument("--fmasks_dir", type=str, default=None)
-    parser.add_argument("--output_dir", type=str, required=True)
-    parser.add_argument(
-        "--num_keypoints",
-        type=int,
-        default=133,
-        help="Number of keypoints in the pose model. Used for visualization",
-    )
-    parser.add_argument(
-        "--shape",
-        type=int,
-        nargs="+",
-        default=[1024, 768],
-        help="input image size (height, width)",
-    )
-    parser.add_argument(
-        "--batch_size",
-        "--batch-size",
-        type=int,
-        default=1,
-        help="Set batch size to do batch inference.",
-    )
-    parser.add_argument(
-        "--num_workers",
-        type=int,
-        default=4,
-        help="Set number of workers per GPU",
-    )
-    parser.add_argument("--gpu_ids", default=None, help="Device used for inference")
-    parser.add_argument("--fp16", action="store_true", default=False, help="Model inference dtype")
-    parser.add_argument(
-        "--det-cat-id",
-        type=int,
-        default=0,
-        help="Category id for bounding box detection model",
-    )
-    parser.add_argument("--bbox-thr", type=float, default=0.3, help="Bounding box score threshold")
-    parser.add_argument("--nms-thr", type=float, default=0.3, help="IoU threshold for bounding box NMS")
-    parser.add_argument("--kpt-thr", type=float, default=0.3, help="Visualizing keypoint thresholds")
-    parser.add_argument("--radius", type=int, default=9, help="Keypoint radius for visualization")
-    parser.add_argument(
-        "--thickness",
-        type=int,
-        default=-1,
-        help="Keypoint skeleton thickness for visualization",
-    )
-    parser.add_argument(
-        "--heatmap-scale",
-        type=int,
-        default=4,
-        help="Heatmap scale for keypoints. Image to heatmap ratio",
-    )
-    parser.add_argument(
-        "--flip",
-        type=bool,
-        default=False,
-        help="Flip the input image horizontally and inference again",
-    )
-    parser.add_argument("--image_ext", type=str, default=".jpg", help="Image/keypoints extension")
-    parser.add_argument(
-        "--save_image",
-        action="store_true",
-        default=False,
-        help="Whether to save keypoint maps",
-    )
-    parser.add_argument(
-        "--skip_exists",
-        action="store_true",
-        help="Whether to skip the existing keypoints",
-    )
 
-    args = parser.parse_args()
+    Args:
+        pose_checkpoint: Checkpoint file for pose
+        det_config: Config file for detection
+        det_checkpoint: Checkpoint file for detection
+        images_dir: Directory containing images
+        video_path: Path to video file
+        fmasks_dir: Directory containing foreground masks
+        output_dir: Output directory (required)
+        num_keypoints: Number of keypoints in the pose model. Used for visualization
+        shape: Input image size (height, width)
+        batch_size: Set batch size to do batch inference
+        num_workers: Set number of workers per GPU
+        gpu_ids: Device used for inference
+        fp16: Model inference dtype
+        det_cat_id: Category id for bounding box detection model
+        bbox_thr: Bounding box score threshold
+        nms_thr: IoU threshold for bounding box NMS
+        kpt_thr: Visualizing keypoint thresholds
+        radius: Keypoint radius for visualization
+        thickness: Keypoint skeleton thickness for visualization
+        heatmap_scale: Heatmap scale for keypoints. Image to heatmap ratio
+        flip: Flip the input image horizontally and inference again
+        image_ext: Image/keypoints extension
+        save_image: Whether to save keypoint maps
+        skip_exists: Whether to skip the existing keypoints
+    """
+    # Convert shape to list if it's a tuple or single value
+    if isinstance(shape, int):
+        shape = [shape, shape]
+    elif isinstance(shape, tuple):
+        shape = list(shape)
+
+    # Check required argument
+    if output_dir is None:
+        raise ValueError("output_dir is required")
+
+    # Create args object to maintain compatibility with existing code
+    class Args:
+        pass
+
+    args = Args()
+    args.pose_checkpoint = pose_checkpoint
+    args.det_config = det_config
+    args.det_checkpoint = det_checkpoint
+    args.images_dir = images_dir
+    args.video_path = video_path
+    args.fmasks_dir = fmasks_dir
+    args.output_dir = output_dir
+    args.num_keypoints = num_keypoints
+    args.shape = shape
+    args.batch_size = batch_size
+    args.num_workers = num_workers
+    args.gpu_ids = gpu_ids
+    args.fp16 = fp16
+    args.det_cat_id = det_cat_id
+    args.bbox_thr = bbox_thr
+    args.nms_thr = nms_thr
+    args.kpt_thr = kpt_thr
+    args.radius = radius
+    args.thickness = thickness
+    args.heatmap_scale = heatmap_scale
+    args.flip = flip
+    args.image_ext = image_ext
+    args.save_image = save_image
+    args.skip_exists = skip_exists
 
     if args.det_config is None or args.det_config == "":
         use_det = False
@@ -279,11 +328,7 @@ def main():
         assert has_mmdet, "Please install mmdet to run the demo."
         assert args.det_checkpoint is not None
 
-        from detector_utils import (
-            adapt_mmdet_pipeline,
-            init_detector,
-            process_images_detector,
-        )
+        from detector_utils import process_images_detector
 
     ## if skeleton thickness is not specified, use radius as thickness
     if args.thickness == -1:
@@ -305,29 +350,15 @@ def main():
         args.gpu_ids = [int(i) for i in args.gpu_ids.split(",")]
     num_gpus = len(args.gpu_ids)
 
-    detectors = []
-    pose_estimators = []
-
-    for i in args.gpu_ids:
-        # build detector
+    if detectors is None:
         if use_det:
-            detector = init_detector(args.det_config, args.det_checkpoint, device=f"cuda:{i}")
-            detector.cfg = adapt_mmdet_pipeline(detector.cfg)
-            detectors.append(detector)
-
-        # build pose estimator
-        USE_TORCHSCRIPT = "_torchscript" in args.pose_checkpoint
-        # build the model from a checkpoint file
-        pose_estimator = load_model(args.pose_checkpoint, USE_TORCHSCRIPT)
-        ## no precision conversion needed for torchscript. run at fp32
-        if not USE_TORCHSCRIPT:
-            dtype = torch.half if args.fp16 else torch.bfloat16
-            pose_estimator.to(dtype)
-            pose_estimator = torch.compile(pose_estimator, mode="max-autotune", fullgraph=True)
+            detectors = load_detectors(args.det_config, args.det_checkpoint, args.gpu_ids)
         else:
-            dtype = torch.float32  # TorchScript models use float32
-            pose_estimator = pose_estimator.to(device=f"cuda:{i}")
-        pose_estimators.append(pose_estimator)
+            detectors = []
+
+    dtype = torch.float16 if args.fp16 else torch.bfloat16
+    if pose_estimators is None:
+        pose_estimators = load_pose_estimators(args.pose_checkpoint, args.gpu_ids, dtype)
 
     # hard code the image extension
     if args.images_dir is not None:
@@ -490,4 +521,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    fire.Fire(inference_sapiens_pose)
