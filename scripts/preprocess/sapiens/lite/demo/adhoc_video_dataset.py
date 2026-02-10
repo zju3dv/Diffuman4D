@@ -10,25 +10,21 @@ import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 import numpy as np
 from PIL import Image
+from torchcodec.decoders import SimpleVideoDecoder  # torchcodec==0.0.3 for torch==2.4.1
 
 
-def read_video(path: str, frame_range: list[int, int, int] = None) -> torch.Tensor:
-    from video_reader import PyVideoReader
+def read_video(path: str, frame_range: list[int, int, int] | None = None) -> torch.Tensor:
+    decoder = SimpleVideoDecoder(path)
 
-    if frame_range is None or frame_range[1] is None:
-        # None case
-        video = PyVideoReader(path).decode()
-
-        if frame_range is not None and frame_range[1] is None:
-            # [begine, None, step] case
-            video = video[frame_range[0] : frame_range[1] : frame_range[2]]
+    if frame_range is not None:
+        b, e, s = frame_range
     else:
-        # [begin, end, step] case
-        video = PyVideoReader(path).decode(start_frame=frame_range[0], end_frame=frame_range[1])
-        video = video[:: frame_range[2]]
+        b, e, s = 0, len(decoder), 1
+    frames = decoder.get_frames_at(start=b, stop=e, step=s)
 
-    video = torch.from_numpy(video).to(dtype=torch.float32) / 255.0
-    video = video.permute(0, 3, 1, 2)
+    # FrameBatch.data: uint8 tensor [F, C, H, W]
+    video = frames.data.to(dtype=torch.float32).div_(255.0)
+
     return video
 
 
