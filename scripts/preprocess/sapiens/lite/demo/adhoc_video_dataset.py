@@ -4,9 +4,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-import cv2
 import torch
-import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 import numpy as np
 from PIL import Image
@@ -29,7 +27,7 @@ def read_video(path: str, frame_range: list[int, int, int] | None = None) -> tor
 
 
 class AdhocVideoDataset(torch.utils.data.Dataset):
-    def __init__(self, video_path, fmask_paths=None, shape=None):
+    def __init__(self, video_path, fmask_paths=None):
         self.video_path = video_path
         self.fmask_paths = fmask_paths
 
@@ -37,21 +35,6 @@ class AdhocVideoDataset(torch.utils.data.Dataset):
 
         if self.fmask_paths is not None and len(self.fmask_paths) != len(self.video):
             raise ValueError("fmask_paths and video must have the same length")
-
-        if shape is None:
-            H, W = self.video.shape[-2:]
-            height, width = 1024, int(round(W / H * 1024))
-            self.shape = (height, width)
-        else:
-            assert len(shape) == 2
-            self.shape = shape
-
-        # (H, W) resize to (1024, W / H * 1024)
-        self.tranform_image = transforms.Compose(
-            [
-                transforms.Resize(self.shape, interpolation=transforms.InterpolationMode.BICUBIC),
-            ]
-        )
 
     def __len__(self):
         return len(self.video)
@@ -64,7 +47,6 @@ class AdhocVideoDataset(torch.utils.data.Dataset):
             bg = Image.new(image.mode, image.size, (0, 0, 0))
             image = Image.composite(image, bg, fmask)
 
-        image = self.tranform_image(image)
-        image = np.array(image)
+        orig_image = np.array(image)[..., [2, 1, 0]]  # RGB to BGR
         image_path = self.video_path.replace(".mp4", f"/{idx:06d}.webp")
-        return image_path, image
+        return image_path, orig_image

@@ -6,6 +6,7 @@
 
 import os, os.path as osp
 import time
+import threading
 import cv2
 import json_tricks as json
 import numpy as np
@@ -46,9 +47,11 @@ def preprocess_pose(orig_img, bboxes_list, input_shape, mean, std):
     preprocessed_images = []
     centers = []
     scales = []
+    # output_size = (width, height) matching the model input
+    output_size = (input_shape[1], input_shape[0])
     for bbox in bboxes_list:
-        img, center, scale = top_down_affine_transform(orig_img.copy(), bbox)
-        img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR).transpose(2, 0, 1)
+        img, center, scale = top_down_affine_transform(orig_img.copy(), bbox, output_size=output_size)
+        img = cv2.resize(img, output_size, interpolation=cv2.INTER_LINEAR).transpose(2, 0, 1)
         img = torch.from_numpy(img)
         img = img[[2, 1, 0], ...].float()
         mean = torch.Tensor(mean).view(-1, 1, 1)
@@ -389,11 +392,13 @@ def inference_sapiens_pose(
         KPTS_COLORS = GOLIATH_KPTS_COLORS
         SKELETON_INFO = GOLIATH_SKELETON_INFO
 
+    # Per-GPU locks to serialize model inference while keeping I/O parallel
+    inference_locks = {gpu_id: threading.Lock() for gpu_id in args.gpu_ids}
+
     def process_single_batch(idx):
         # get model and data
         gpu_idx = idx % num_gpus
         device = f"cuda:{args.gpu_ids[gpu_idx]}"
-        detector = detectors[gpu_idx]
         pose_estimator = pose_estimators[gpu_idx]
 
         image_path, orig_img = inference_dataset[idx]
@@ -403,8 +408,8 @@ def inference_sapiens_pose(
             output_path = osp.join(args.output_dir, "/".join(image_path.split("/")[-1:]))
         else:
             output_path = osp.join(args.output_dir, "/".join(image_path.split("/")[-2:]))
-        args.image_ext = osp.splitext(image_path)[1]
-        output_json_path = output_path.replace(args.image_ext, ".json")
+        image_ext = osp.splitext(image_path)[1]
+        output_json_path = output_path.replace(image_ext, ".json")
         if args.skip_exists and osp.exists(output_json_path):
             try:
                 json.load(open(output_json_path))
@@ -417,55 +422,53 @@ def inference_sapiens_pose(
 
         orig_img_shape = batch_orig_imgs.shape
         valid_images_len = len(batch_orig_imgs)
-        if use_det:
-            imgs = batch_orig_imgs.copy()[..., [2, 1, 0]]
-            bboxes_batch = process_images_detector(args, imgs, detector)
-        else:
-            bboxes_batch = [[] for _ in range(len(batch_orig_imgs))]
 
+        # --- GPU lock 1: detection ---
+        with inference_locks[args.gpu_ids[gpu_idx]]:
+            if use_det:
+                detector = detectors[gpu_idx]
+                imgs = batch_orig_imgs.copy()[..., [2, 1, 0]]
+                bboxes_batch = process_images_detector(args, imgs, detector)
+            else:
+                bboxes_batch = [[] for _ in range(len(batch_orig_imgs))]
+
+        # --- CPU: bbox defaults + pose preprocessing (no lock) ---
         assert len(bboxes_batch) == valid_images_len
 
         for i, bboxes in enumerate(bboxes_batch):
             if len(bboxes) == 0:
-                bboxes_batch[i] = np.array([[0, 0, orig_img_shape[1], orig_img_shape[2]]])  # orig_img_shape: B H W C
+                bboxes_batch[i] = np.array([[0, 0, orig_img_shape[2], orig_img_shape[1]]])  # orig_img_shape: B H W C → bbox: [x1,y1,x2,y2] = [0,0,W,H]
 
         img_bbox_map = {}
         for i, bboxes in enumerate(bboxes_batch):
             img_bbox_map[i] = len(bboxes)
 
-        args_list = [
-            (
-                orig_img,
-                bbox_list,
+        pose_imgs, pose_img_centers, pose_img_scales = [], [], []
+        for o_img, bbox_list in zip(batch_orig_imgs, bboxes_batch):
+            p_imgs, centers, scales_ = preprocess_pose(
+                o_img, bbox_list,
                 (input_shape[1], input_shape[2]),
                 [123.5, 116.5, 103.5],
                 [58.5, 57.0, 57.5],
             )
-            for orig_img, bbox_list in zip(batch_orig_imgs, bboxes_batch)
-        ]
+            pose_imgs.extend(p_imgs)
+            pose_img_centers.extend(centers)
+            pose_img_scales.extend(scales_)
 
-        pose_ops = []
-        for _args in args_list:
-            pose_op = preprocess_pose(*_args)
-            pose_ops.append(pose_op)
+        local_batch_size = 1  # process one image at a time
+        n_pose_batches = (len(pose_imgs) + local_batch_size - 1) // local_batch_size
 
-        pose_imgs, pose_img_centers, pose_img_scales = [], [], []
-        for op in pose_ops:
-            pose_imgs.extend(op[0])
-            pose_img_centers.extend(op[1])
-            pose_img_scales.extend(op[2])
-
-        args.batch_size = 1  # process one image at a time
-        n_pose_batches = (len(pose_imgs) + args.batch_size - 1) // args.batch_size
-
-        # use this to tell torch compiler the start of model invocation as in 'flip' mode the tensor output is overwritten
-        torch.compiler.cudagraph_mark_step_begin()
-        pose_results = []
-        for i in range(n_pose_batches):
-            imgs = torch.stack(pose_imgs[i * args.batch_size : (i + 1) * args.batch_size], dim=0)
-            valid_len = len(imgs)
-            imgs = fake_pad_images_to_batchsize(imgs, args.batch_size)
-            pose_results.extend(batch_inference_topdown(pose_estimator, imgs, dtype=dtype, device=device)[:valid_len])
+        # --- GPU lock 2: pose inference ---
+        with inference_locks[args.gpu_ids[gpu_idx]]:
+            torch.compiler.cudagraph_mark_step_begin()
+            pose_results = []
+            for i in range(n_pose_batches):
+                imgs = torch.stack(pose_imgs[i * local_batch_size : (i + 1) * local_batch_size], dim=0)
+                valid_len = len(imgs)
+                imgs = fake_pad_images_to_batchsize(imgs, local_batch_size)
+                pose_results.extend(
+                    batch_inference_topdown(pose_estimator, imgs, dtype=dtype, device=device)[:valid_len]
+                )
 
         batched_results = []
         for _, bbox_len in img_bbox_map.items():
@@ -483,7 +486,7 @@ def inference_sapiens_pose(
 
         assert len(batched_results) == len(batch_orig_imgs)
 
-        args_list = [
+        save_args_list = [
             (
                 img,
                 res,
@@ -503,7 +506,7 @@ def inference_sapiens_pose(
                 batch_output_paths,
             )
         ]
-        for _args in args_list:
+        for _args in save_args_list:
             img_save_and_vis(*_args)
 
     from easyvolcap.utils.parallel_utils import parallel_execution

@@ -6,36 +6,16 @@
 
 import cv2
 import torch
-import torchvision.transforms as transforms
-import torchvision.transforms.functional as TF
 import numpy as np
 from PIL import Image
 
 
 class AdhocImageDataset(torch.utils.data.Dataset):
-    def __init__(self, image_paths, fmask_paths=None, shape=None):
+    def __init__(self, image_paths, fmask_paths=None):
         self.image_paths = image_paths
         self.fmask_paths = fmask_paths
         if self.fmask_paths is not None and len(self.fmask_paths) != len(self.image_paths):
             raise ValueError("fmask_paths and image_paths must have the same length")
-        if shape:
-            assert len(shape) == 2
-
-        if self.shape is None:
-            image = Image.open(image_paths[0])
-            W, H = image.size
-            height, width = 1024, int(round(W / H * 1024))
-            self.shape = (height, width)
-        else:
-            self.shape = shape
-
-        # (H, W) resize to (1024, W / H * 1024) crop to (h, w)
-        self.tranform_image = transforms.Compose(
-            [
-                transforms.Resize(self.shape[0], interpolation=transforms.InterpolationMode.BICUBIC),
-                transforms.CenterCrop(self.shape),
-            ]
-        )
 
     def __len__(self):
         return len(self.image_paths)
@@ -49,6 +29,5 @@ class AdhocImageDataset(torch.utils.data.Dataset):
             bg = Image.new(image.mode, image.size, (0, 0, 0))
             image = Image.composite(image, bg, fmask)
 
-        image = self.tranform_image(image)
-        image = np.array(image)
-        return image_path, image
+        orig_image = np.array(image)[..., [2, 1, 0]]  # RGB to BGR
+        return image_path, orig_image

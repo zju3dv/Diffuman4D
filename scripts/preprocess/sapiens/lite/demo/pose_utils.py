@@ -226,12 +226,16 @@ def get_udp_warp_matrix(
     return warp_mat
 
 
-def top_down_affine_transform(img, bbox, padding=1.25):
+def top_down_affine_transform(img, bbox, padding=1.25, output_size=None):
     """
     Args:
         img (np.ndarray): Image to be transformed.
         bbox (np.ndarray): Bounding box to be transformed.
         padding (int): Padding size.
+        output_size (tuple[int, int] | None): Target (width, height) for the
+            warp output.  When *None* (default, keeps original behaviour) the
+            input image size is used – which is only correct when the image
+            already has the model's aspect ratio.
 
     Returns:
         np.ndarray: Transformed image.
@@ -249,9 +253,14 @@ def top_down_affine_transform(img, bbox, padding=1.25):
         center = center[0]
         scale = scale[0]
 
-    h, w = img.shape[:2]
-    warp_size = (int(w), int(h))
-    aspect_ratio = w / h
+    if output_size is not None:
+        out_w, out_h = output_size
+    else:
+        h, w = img.shape[:2]
+        out_w, out_h = int(w), int(h)
+
+    warp_size = (out_w, out_h)
+    aspect_ratio = out_w / out_h
 
     # reshape bbox to fixed aspect ratio
     box_w, box_h = np.hsplit(scale, [1])
@@ -262,7 +271,7 @@ def top_down_affine_transform(img, bbox, padding=1.25):
     rot = 0.
 
     warp_mat = get_udp_warp_matrix(
-            center, scale, rot, output_size=(w, h))
+            center, scale, rot, output_size=(out_w, out_h))
 
     img = cv2.warpAffine(
             img, warp_mat, warp_size, flags=cv2.INTER_LINEAR)
