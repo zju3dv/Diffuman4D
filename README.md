@@ -178,7 +178,7 @@ The dataset file structure looks like:
 ```
 
 > [!tip]
-> nerfstudio use the OpenGL/Blender coordinate convention for cameras. If you need the Colmap/OpenCV coordinate convention, please flip the Y and Z axes of the `transform_matrix`. For more details, see the [nerfstudio documentation](https://docs.nerf.studio/quickstart/data_conventions.html).
+> Nerfstudio uses the OpenGL/Blender coordinate convention for cameras. If you need the Colmap/OpenCV coordinate convention, please flip the Y and Z axes of the `transform_matrix`. For more details, see the [nerfstudio documentation](https://docs.nerf.studio/quickstart/data_conventions.html).
 
 ### Custom Data Processing
 
